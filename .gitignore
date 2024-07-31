@@ -2,3 +2,7 @@ cosine_similarities/
 movielens_latest/
 movielens_small/
 TMDB/
+upgraded_movielens_latest/
+bayesian_data/
+data/
+helper_data/
