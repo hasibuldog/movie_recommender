@@ -3,13 +3,15 @@ import json
 import joblib
 import numpy as np
 import pandas as pd
-from typing import List, Tuple
 from pydantic import BaseModel
 from fuzzywuzzy import process
 from collections import Counter
 from scipy.sparse import csr_matrix
+from typing import List, Dict, Tuple, Any
 from fastapi import FastAPI, HTTPException
 from sklearn.neighbors import NearestNeighbors
+
+
 
 
 
@@ -32,6 +34,7 @@ movie_inv_mapper_b = joblib.load('bayesian_data/movie_inv_mapper_b.joblib')
 title_2_idx = joblib.load('helper_data/title_2_idx.joblib')
 title_2_id = joblib.load('helper_data/title_2_id.joblib')
 id_2_title = joblib.load('helper_data/id_2_title.joblib')
+title_2_tmdbID = joblib.load('helper_data/title_2_tmdbID.joblib')
 
 titles = pd.read_csv('upgraded_movielens_latest/titles.csv')
 end_load = time.time()
@@ -114,6 +117,7 @@ def voting_merge(rec_bayesian_shrinked, rec_only_shrinked, n_recommendations):
 def get_content_collab_merged_recommendations(title_string, n_recommendations=15, w1 = 0.6, w2 = 0.4):
 
     title = movie_finder(title_string)
+    tmdbID = title_2_tmdbID[title]
     idx = title_2_idx[title]
     sim_scores = list(enumerate(cosine_sim[idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
@@ -131,9 +135,27 @@ def get_content_collab_merged_recommendations(title_string, n_recommendations=15
 
     top_collab_recs = voting_merge(rec_bayesian_shrinked, rec_only_shrinked, n_recommendations)
     top_recommendations = weighted_avg_merge(w1, w2, rec_content, top_collab_recs, n_recommendations)
-    info = (title, movie_id)
 
-    return top_recommendations, info
+    top_rec_w_info = []
+    for i in top_recommendations:
+        movie_id = title_2_id[i]
+        tmdbID = title_2_tmdbID[i]
+        top_rec_w_info.append({
+            "title": i,
+            "movie_id": movie_id,
+            "tmdbID" : tmdbID
+        })
+    
+    title = movie_finder(title_string)
+    tmdbID = title_2_tmdbID[title]
+    
+    info = {
+        "title" : title,
+        "tmdbID" : tmdbID,
+        "movie_id" : movie_id
+    }
+
+    return top_rec_w_info, info
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -148,21 +170,15 @@ class NumpyEncoder(json.JSONEncoder):
 app = FastAPI()
 app.json_encoder = NumpyEncoder
 
-# class RecommendationRequest(BaseModel):
-#     title: str
-#     n_recommendations: int = 15
-
-# class RecommendationResponse(BaseModel):
-#     recommendations: list
-#     info: tuple
-
 class RecommendationRequest(BaseModel):
     title: str
     n_recommendations: int = 15
+    w1: float
+    w2 : float
 
 class RecommendationResponse(BaseModel):
-    recommendations: List[str]
-    info: Tuple[str, int]
+    recommendations: List[Any]
+    info: Any
 
 @app.get("/")
 async def root():
@@ -173,13 +189,16 @@ async def get_recommendations(request: RecommendationRequest):
     try:
         start_rec = time.time()
         top_recommendations, info = get_content_collab_merged_recommendations(
-            request.title, request.n_recommendations
+            request.title, request.n_recommendations, request.w1, request.w2
         )
+        print(top_recommendations)
+        print("##########")
+        print(info)
         end_rec = time.time()
         print(f'Total Recommendation Computation Time : {end_rec-start_rec}')
         
-        top_recommendations = [str(rec) for rec in top_recommendations]
-        info = (str(info[0]), int(info[1]))
+        # top_recommendations = [dict(rec) for rec in top_recommendations]
+        # info = dict(info)
         
         return RecommendationResponse(recommendations=top_recommendations, info=info)
     except Exception as e:

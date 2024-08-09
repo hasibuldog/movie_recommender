@@ -1,9 +1,11 @@
+import os
 import numpy as np
 import pandas as pd
 import requests
 from tqdm.contrib.concurrent import thread_map
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from dotenv import load_dotenv
 
 links = pd.read_csv("movielens_latest/links.csv")
 movies = pd.read_csv("movielens_latest/movies.csv")
@@ -30,7 +32,8 @@ def process_response(response):
     tag = f"overview: {overview} tagline: {tagline} keywords: {keywords} casts: {casts} director: {director} vote_average: {vote_average} vote_count: {vote_count} popularity: {popularity}"
     return tag
 
-api_key = "b2847a0dfc44e58d74a604d91ad4bd9a"
+load_dotenv()
+api_key = os.getenv("API_KEY")
 
 def get_movie_details(row):
     tmdbId, movieId, genres = row.tmdbId, row.movieId, row.genres
