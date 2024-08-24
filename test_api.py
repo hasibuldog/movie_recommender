@@ -1,16 +1,18 @@
 import requests
 import os
-from dotenv import load_dotenv
+import time
+
 
 url = "http://localhost:8000/recommend"
 headers = {"Content-Type": "application/json"}
-data = {"title": "spiderman", "n_recommendations": 20}
-
+data = {"title_string": "spiderman", "n_recommendations": 20}
+start = time.time()
 response = requests.post(url, headers=headers, json=data)
 print(response.json())
-
-load_dotenv()
-api_key = os.getenv("API_KEY")
-print(api_key)
+end = time.time()
+print(f" Time took {end - start}")
+# load_dotenv()
+# api_key = os.getenv("API_KEY")
+# print(api_key)
 
 

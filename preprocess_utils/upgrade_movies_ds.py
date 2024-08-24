@@ -67,7 +67,7 @@ for movieId, tag in results:
     else:
         failed_ids.append(movieId)
 
-movies2.to_csv("upgraded_movielens_latest/movie_w_data.csv", index=False)
+movies2.to_csv("upgraded_movielens_latest/upgraded_movies.csv", index=False)
 print(f"Total failures : {len(failed_ids)}")
 
 with open("failed_ids.txt", "w") as f:

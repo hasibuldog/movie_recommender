@@ -1,0 +1,14 @@
+2024-08-20 17:46:25.110 +06 [16249] LOG:  starting PostgreSQL 16.4 on aarch64-apple-darwin20.0.0, compiled by clang version 16.0.6, 64-bit
+2024-08-20 17:46:25.111 +06 [16249] LOG:  listening on IPv6 address "::1", port 5432
+2024-08-20 17:46:25.111 +06 [16249] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-08-20 17:46:25.112 +06 [16249] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-08-20 17:46:25.114 +06 [16252] LOG:  database system was shut down at 2024-08-20 17:46:16 +06
+2024-08-20 17:46:25.116 +06 [16249] LOG:  database system is ready to accept connections
+2024-08-20 17:51:25.109 +06 [16250] LOG:  checkpoint starting: time
+2024-08-20 17:51:29.380 +06 [16250] LOG:  checkpoint complete: wrote 45 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.265 s, sync=0.003 s, total=4.272 s; sync files=11, longest=0.001 s, average=0.001 s; distance=263 kB, estimate=263 kB; lsn=0/14D9E98, redo lsn=0/14D9E60
+2024-08-20 17:52:05.824 +06 [19911] FATAL:  role "postgres" does not exist
+2024-08-20 17:56:26.010 +06 [16249] LOG:  could not open file "postmaster.pid": No such file or directory
+2024-08-20 17:56:26.011 +06 [16249] LOG:  performing immediate shutdown because data directory lock file is invalid
+2024-08-20 17:56:26.011 +06 [16249] LOG:  received immediate shutdown request
+2024-08-20 17:56:26.011 +06 [16249] LOG:  could not open file "postmaster.pid": No such file or directory
+2024-08-20 17:56:26.012 +06 [16249] LOG:  database system is shut down
