@@ -1,13 +1,17 @@
 # Movie Recommender
 
-This project is a movie recommendation system that uses the MovieLens dataset, TMDB API, and machine learning techniques to provide personalized movie recommendations. It includes a FastAPI backend for serving recommendations and a Streamlit frontend for user interaction.
+This project is a movie recommendation system that uses both Content based and Collaborative and merges to provide personalized movie recommendations. It includes a FastAPI backend and Postgres+PGvector for serving recommendations and a Streamlit frontend for a demo. An End to End implementation of sveltekit webapp with typescript backend for this project can be found at this [github repo](https://github.com/hasibuldog/movie_recommender_svelte).
+
+
+## About Database & Dataset
+
+This project uses the latest [MovieLens dataset](https://grouplens.org/datasets/movielens/latest/). In this project, the data was processed and inserted into a PostgreSQL database, optimized for efficient querying and recommendation generation. 
 
 ## Project Goals
 
 1. Preprocess the MovieLens dataset and enrich it with data from TMDB API
 2. Store the processed data in a PostgreSQL database with pgvector support for efficient similarity searches
 3. Provide a FastAPI endpoint for movie recommendations
-4. Offer a user-friendly Streamlit interface for searching movies and getting recommendations
 
 ## Setup Instructions
 
