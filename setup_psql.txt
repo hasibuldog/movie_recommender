@@ -1,8 +1,7 @@
 docker pull pgvector/pgvector:pg16 
-docker images
+
 docker volume create pgvector_mov_data
-docker volume rm pgvector_mov_data
-docker volume ls
+
 
 docker run --name pgvector_mov_container \
 -e POSTGRES_USER=bulldogg \
@@ -11,26 +10,18 @@ docker run --name pgvector_mov_container \
 -v pgvector_mov_data:/var/lib/postgresql/data \
 -d pgvector/pgvector:pg16
 
-docker ps
 docker exec -it pgvector_mov_container psql -U bulldogg
 CREATE DATABASE mov_db_1;
-\list
+
 \c mov_db_1
 CREATE EXTENSION vector;
+
+
+docker ps
 \dx
+\list
+docker images
+docker volume rm pgvector_mov_data
+docker volume ls
 
-
-
-
-(3114, 'Toy Story 2 (1999)', 0.0)
-(78499, 'Toy Story 3 (2010)', 0.31282236681838593)
-(201588, 'Toy Story 4 (2019)', 0.60465638892662)
-(115875, 'Toy Story Toons: Hawaiian Vacation (2011)', 0.8912292495187901)
-(120474, 'Toy Story That Time Forgot (2014)', 1.0)
-(736, 'Twister (1996)', 0.0)
-(3114, 'Toy Story 2 (1999)', 0.1894742461105597)
-(780, 'Independence Day (a.k.a. ID4) (1996)', 0.3162479511286883)
-(648, 'Mission: Impossible (1996)', 0.6953329755509523)
-(367, 'Mask, The (1994)', 1.0)
-{3114: {'title': 'Toy Story 2 (1999)', 'distance_sum': 0.1894742461105597, 'count': 2, 'content_distance': None, 'collaborative_distance': 0.1894742461105597}, 78499: {'title': 'Toy Story 3 (2010)', 'distance_sum': 0.31282236681838593, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 201588: {'title': 'Toy Story 4 (2019)', 'distance_sum': 0.60465638892662, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 115875: {'title': 'Toy Story Toons: Hawaiian Vacation (2011)', 'distance_sum': 0.8912292495187901, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 120474: {'title': 'Toy Story That Time Forgot (2014)', 'distance_sum': 1.0, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 736: {'title': 'Twister (1996)', 'distance_sum': 0.0, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 780: {'title': 'Independence Day (a.k.a. ID4) (1996)', 'distance_sum': 0.3162479511286883, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 648: {'title': 'Mission: Impossible (1996)', 'distance_sum': 0.6953329755509523, 'count': 1, 'content_distance': None, 'collaborative_distance': None}, 367: {'title': 'Mask, The (1994)', 'distance_sum': 1.0, 'count': 1, 'content_distance': None, 'collaborative_distance': None}}
-
+docker exec -it pgvector_mov2 pg_dump -U bulldogg -d mov_db_1 -F c -f /tmp/database_dump.sql

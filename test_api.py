@@ -11,8 +11,5 @@ response = requests.post(url, headers=headers, json=data)
 print(response.json())
 end = time.time()
 print(f" Time took {end - start}")
-# load_dotenv()
-# api_key = os.getenv("API_KEY")
-# print(api_key)
 
 

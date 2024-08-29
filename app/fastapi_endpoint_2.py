@@ -1,39 +1,93 @@
 import os
 import joblib
+import logging
 import psycopg2
 import pandas as pd
+from typing import Any, List
 from pydantic import BaseModel
 from fuzzywuzzy import process
-from typing import List, Dict, Tuple, Any
-from fastapi import FastAPI, HTTPException
+from psycopg2 import Error as PostgresError
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
-title_2_id = joblib.load('helper_data/title_2_id.joblib')
-title_2_tmdbID = joblib.load('helper_data/title_2_tmdbID.joblib')
-titles = pd.read_csv('upgraded_movielens_latest/titles.csv')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-print(os.getenv("DB_NAME"))
-print(os.getenv("USER"))
-print(os.getenv("PASSWORD"))
-print(os.getenv("HOST"))
-print(os.getenv("PORT"))
+db_name = "mov_db_1"
+user = "bulldogg"
+password = "21101314"
+host = "localhost"
+port = 5434
 
-conn = psycopg2.connect(
-    dbname = os.getenv("DB_NAME"),
-    user = os.getenv("USER"),
-    password = os.getenv("PASSWORD"),
-    host = os.getenv("HOST"),
-    port = os.getenv("PORT")
+try:
+    conn = psycopg2.connect(
+        dbname=db_name,
+        user=user,
+        password=password,
+        host=host,
+        port=port
+    )
+    print("Successfully connected to the database.")
+    cur = conn.cursor()
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-cur = conn.cursor()
 
-all_titles = titles['title'].tolist()
+class MovieMatch(BaseModel):
+    movieId: int
+    tmdbId: int
+    title: str
+    similarity: float
 
-def movie_finder(title):
-    closest_match = process.extractOne(title, all_titles)
-    return closest_match[0]
+class RecommendationRequest(BaseModel):
+    movie_id: int
+    tmdb_id: int
+    title: str
+    n_recommendations: int
+
+class RecommendationResponse(BaseModel):
+    recommendations: List[dict]
+    info: tuple
+
+def movie_finder(title_string: str, limit: int = 10) -> List[MovieMatch]:
+    query = """
+    SELECT movieId, tmdbId, title, similarity(title, %s) AS sim
+    FROM movies_v3
+    WHERE title %% %s OR title ILIKE %s
+    ORDER BY sim DESC
+    LIMIT %s;
+    """
+    try:
+        if conn.closed:
+            logger.info("Reconnecting to the database")
+            conn.connect()
+        
+        with conn.cursor() as cur:
+            cur.execute(query, (title_string, title_string, f"%{title_string}%", limit))
+            results = cur.fetchall()
+        
+        conn.commit()
+        return [MovieMatch(movieId=row[0], tmdbId=row[1], title=row[2], similarity=row[3]) for row in results]
+    except PostgresError as e:
+        logger.error(f"Database error in movie_finder: {str(e)}")
+        conn.rollback()
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in movie_finder: {str(e)}")
+        conn.rollback()
+        raise
 
 def get_content_based_recommendation(movie_id, k):
-    embeddings_query = "SELECT embeddings FROM movies WHERE movieId = %s;"
+    embeddings_query = "SELECT embeddings FROM movies_v3 WHERE movieId = %s;"
     cur.execute(embeddings_query, (movie_id,))
     result = cur.fetchone()
 
@@ -43,8 +97,8 @@ def get_content_based_recommendation(movie_id, k):
         print(f"No embedding found for movieId {movie_id}")
 
     knn_query = """
-    SELECT movieId, title, embeddings <-> %s::vector AS distance
-    FROM movies
+    SELECT movieId, tmdbId, title, embeddings <-> %s::vector AS distance
+    FROM movies_v3
     WHERE movieId != %s  -- Exclude the query movie itself
     ORDER BY embeddings <-> %s::vector
     LIMIT %s;
@@ -56,7 +110,7 @@ def get_content_based_recommendation(movie_id, k):
 
 
 def get_collaborative_recommendation(movie_id, k):
-    usr_vec_query = "SELECT usr_vec FROM movies WHERE movieId = %s;"
+    usr_vec_query = "SELECT usr_vec FROM movies_v3 WHERE movieId = %s;"
     cur.execute(usr_vec_query, (movie_id,))
     result = cur.fetchone()
     if result:
@@ -65,8 +119,8 @@ def get_collaborative_recommendation(movie_id, k):
         print(f"No usr_vec found for movieId {movie_id}")
 
     query = """
-    SELECT movieId, title, usr_vec <-> %s::vector AS distance
-    FROM movies
+    SELECT movieId, tmdbId, title, usr_vec <-> %s::vector AS distance
+    FROM movies_v3
     WHERE movieId != %s  -- Exclude the query movie itself
     ORDER BY usr_vec <-> %s::vector
     LIMIT %s;
@@ -84,17 +138,17 @@ def min_max_normalize(distances):
     return [(d - min_dist) / (max_dist - min_dist) for d in distances]
 
 def merge_recommendations(content_recs, collab_recs, k):
-    content_distances = [rec[2] for rec in content_recs]
-    collab_distances = [rec[2] for rec in collab_recs]
+    content_distances = [rec[3] for rec in content_recs]
+    collab_distances = [rec[3] for rec in collab_recs]
     
     norm_content_distances = min_max_normalize(content_distances)
     norm_collab_distances = min_max_normalize(collab_distances)
     
-    content_recs_norm = [(rec[0], rec[1], norm_dist) for rec, norm_dist in zip(content_recs, norm_content_distances)]
-    collab_recs_norm = [(rec[0], rec[1], norm_dist) for rec, norm_dist in zip(collab_recs, norm_collab_distances)]
+    content_recs_norm = [(rec[0], rec[1], rec[2], norm_dist) for rec, norm_dist in zip(content_recs, norm_content_distances)]
+    collab_recs_norm = [(rec[0], rec[1], rec[2], norm_dist) for rec, norm_dist in zip(collab_recs, norm_collab_distances)]
     rec_dict = {}
     for rec in content_recs_norm + collab_recs_norm:
-        movie_id, title, distance = rec
+        movie_id, tmdbId, title, distance = rec
         if movie_id in rec_dict:
             rec_dict[movie_id]['distance_sum'] += distance
             rec_dict[movie_id]['count'] += 1
@@ -105,6 +159,7 @@ def merge_recommendations(content_recs, collab_recs, k):
         else:
             rec_dict[movie_id] = {
                 'title': title, 
+                'tmdbId': tmdbId,
                 'distance_sum': distance, 
                 'count': 1,
                 'content_distance': distance if rec in content_recs_norm else None,
@@ -115,55 +170,52 @@ def merge_recommendations(content_recs, collab_recs, k):
         avg_distance = data['distance_sum'] / data['count']
         merged_recs.append({
             'movie_id': movie_id,
+            'tmdbId': data['tmdbId'],
             'title': data['title'],
             'avg_distance': avg_distance,
             'count': data['count'],
             'content_distance': data['content_distance'],
             'collaborative_distance': data['collaborative_distance']
         })
+    print("merged_recs_unsorted", merged_recs)
     merged_recs.sort(key=lambda x: (-x['count'], x['avg_distance']))
+    print("merged_recs_sorted", merged_recs)
 
     return merged_recs[:k]
 
-def get_hybrid_recommendations(title_string, k):
-    title = movie_finder(title_string)
-    id = title_2_id[title]
-    info = (id, title)
-    content_recs = get_content_based_recommendation(movie_id=id, k=k)
-    collab_recs = get_collaborative_recommendation(movie_id=id, k=k)
+
+def get_hybrid_recommendations(movie_id: int, tmdb_id: int, title: str, k: int):
+    info = (movie_id, tmdb_id, title)
+    content_recs = get_content_based_recommendation(movie_id=movie_id, k=k)
+    collab_recs = get_collaborative_recommendation(movie_id=movie_id, k=k)
     merged_recs = merge_recommendations(content_recs, collab_recs, k)
     return merged_recs, info
 
-print(get_hybrid_recommendations("spiderman", 5))
-    
-app = FastAPI()
-
-class RecommendationRequest(BaseModel):
-    title_string: str
-    n_recommendations: int
-
-class RecommendationResponse(BaseModel):
-    recommendations: Any
-    info: Any
 
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Movie Recommendation API"}
 
+@app.get("/search_movies", response_model=List[MovieMatch])
+async def search_movies(title: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=100)):
+    try:
+        logger.info(f"Searching for movies with title: {title}, limit: {limit}")
+        results = movie_finder(title, limit)
+        logger.info(f"Found {len(results)} results")
+        return results
+    except Exception as e:
+        logger.error(f"Error searching movies: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error searching movies: {str(e)}")
+
 @app.post("/recommend", response_model=RecommendationResponse)
 async def get_recommendations(request: RecommendationRequest):
-    print('sex')
     try:
         top_recommendations, info = get_hybrid_recommendations(
-            request.title_string, request.n_recommendations
+            request.movie_id, request.tmdb_id, request.title, request.n_recommendations
         )
-        print(top_recommendations)
-        print("##########")
-        print(info)
-        
         return RecommendationResponse(recommendations=top_recommendations, info=info)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Error getting recommendations: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
